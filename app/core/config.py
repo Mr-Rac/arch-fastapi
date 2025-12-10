@@ -1,9 +1,9 @@
-import secrets
 from typing import Annotated, Literal
 
 from pydantic import (
     AnyUrl,
     BeforeValidator,
+    Field,
     computed_field,
 )
 from pydantic_core import MultiHostUrl
@@ -37,7 +37,7 @@ class Settings(BaseSettings):
         return [str(origin).rstrip("/") for origin in self.CORS_ORIGINS]
 
     # OAuth
-    SECRET_KEY: str = secrets.token_urlsafe(32)
+    SECRET_KEY: str = Field(..., min_length=32, description="JWT signing key")
     ALGORITHM: str = "HS256"
     ISSUER: str = "arc-fastapi"
     AUDIENCE: str = "arc-fastapi"

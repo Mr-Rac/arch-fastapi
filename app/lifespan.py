@@ -27,6 +27,12 @@ class LifespanState(TypedDict, total=False):
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[LifespanState]:
+    # verify secret key
+    if not settings.SECRET_KEY or len(settings.SECRET_KEY) < 32:
+        raise RuntimeError("SECRET_KEY is not configured or too short. ")
+    masked_key = f"{settings.SECRET_KEY[:8]}{'*' * (len(settings.SECRET_KEY) - 8)}"
+    logging.warning(f"SECRET_KEY configured: {masked_key}")
+
     # init aiohttp session
     ssl_context = ssl.create_default_context(cafile=certifi.where())
     aiohttp_session = ClientSession(
