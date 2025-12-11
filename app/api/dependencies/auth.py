@@ -5,12 +5,11 @@ from fastapi.security import OAuth2PasswordBearer
 
 from app.api.dependencies.mysql import AuthMySQLDep
 from app.api.dependencies.redis import AuthRedisDep
+from app.core.cache import get_user_scopes_cached
 from app.core.config import settings
 from app.core.token import Token
 from app.domains.auth.const import TokenType
-from app.domains.auth.curd import UserCurd
 from app.domains.auth.exception import AuthError
-from app.domains.auth.schema import UserSelect
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{settings.API_PREFIX}/auth/login")
 
@@ -29,15 +28,17 @@ def check_scopes(*scopes: str):
                 detail=AuthError.INVALID_TOKEN,
                 headers={"WWW-Authenticate": "Bearer"},
             )
-        user = await UserCurd.select(session, UserSelect(username=payload["sub"]))
-        if not user:
+
+        user_scopes_list = await get_user_scopes_cached(redis, session, payload["sub"])
+        if not user_scopes_list:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail=AuthError.INVALID_USER,
                 headers={"WWW-Authenticate": "Bearer"},
             )
+
         jwt_scopes = set(payload["scopes"])
-        user_scopes = set(user.scopes)
+        user_scopes = set(user_scopes_list)
 
         if jwt_scopes != user_scopes:
             raise HTTPException(

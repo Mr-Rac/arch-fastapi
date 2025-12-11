@@ -45,6 +45,9 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_SECONDS: int = 60 * 10
     REFRESH_TOKEN_EXPIRE_SECONDS: int = 60 * 60 * 24 * 7
 
+    # Cache
+    USER_SCOPES_CACHE_TTL: int = 300
+
     # Aiohttp
     AIOHTTP_TIMEOUT: int = 30
 
