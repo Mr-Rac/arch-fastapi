@@ -86,15 +86,15 @@ class Token:
         cls, redis: Redis, token_type: TokenType, subject: str, scopes: list[str]
     ) -> str:
         jti = str(uuid.uuid4())
-        now = datetime.now(timezone.utc)
+        now = int(datetime.now(timezone.utc).timestamp())
         expire = cls.expire(token_type)
         payload = JWTPayload(
             sub=subject,
             type=token_type.value,
             jti=jti,
-            iat=int(now.timestamp()),
-            nbf=int(now.timestamp()),
-            exp=int(now.timestamp()) + expire,
+            iat=now,
+            nbf=now,
+            exp=now + expire,
             iss=settings.ISSUER,
             aud=settings.AUDIENCE,
             scopes=scopes,
@@ -107,10 +107,7 @@ class Token:
     async def verify(
         cls, redis: Redis, token_type: TokenType, token: str
     ) -> JWTPayload:
-        try:
-            payload = cls._decode(token)
-        except Exception:
-            raise
+        payload = cls._decode(token)
         if payload.get("type") != token_type.value:
             raise InvalidTokenError()
         sub = payload.get("sub")
@@ -126,11 +123,7 @@ class Token:
 
     @classmethod
     async def refresh(cls, redis: Redis, token: str) -> str:
-        try:
-            payload = await cls.verify(redis, TokenType.REFRESH, token)
-        except Exception:
-            raise
-        await cls._revoke(redis, TokenType.ACCESS, payload["jti"])
+        payload = await cls.verify(redis, TokenType.REFRESH, token)
         access_token = await cls.create(
             redis, TokenType.ACCESS, payload["sub"], payload["scopes"]
         )
