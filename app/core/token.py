@@ -8,7 +8,7 @@ from jwt.exceptions import InvalidTokenError
 from redis.asyncio import Redis
 
 from app.core.config import settings
-from app.domains.auth.const import TokenType, RedisKey
+from app.domains.auth.const import RedisKey, TokenType
 
 
 class JWTPayload(TypedDict, total=False):
@@ -24,7 +24,6 @@ class JWTPayload(TypedDict, total=False):
 
 
 class Token:
-
     @staticmethod
     def expire(token_type: TokenType) -> int:
         seconds = 0
@@ -57,7 +56,9 @@ class Token:
         )
 
     @classmethod
-    async def _allow(cls, redis: Redis, token_type: TokenType, subject: str, jti: str, ttl: int) -> None:
+    async def _allow(
+        cls, redis: Redis, token_type: TokenType, subject: str, jti: str, ttl: int
+    ) -> None:
         allow_key = RedisKey.ALLOW(token_type, jti)
         token_key = RedisKey.TOKEN(token_type, subject)
         async with redis.pipeline() as pipeline:
@@ -70,7 +71,9 @@ class Token:
     async def _revoke(cls, redis: Redis, token_type: TokenType, jti: str) -> None:
         allow_key = RedisKey.ALLOW(token_type, jti)
         subject = await redis.get(allow_key)
-        subject = subject.decode() if isinstance(subject, (bytes, bytearray)) else subject
+        subject = (
+            subject.decode() if isinstance(subject, (bytes, bytearray)) else subject
+        )
         if subject:
             token_key = RedisKey.TOKEN(token_type, subject)
             async with redis.pipeline() as pipeline:
@@ -79,7 +82,9 @@ class Token:
                 await pipeline.execute()
 
     @classmethod
-    async def create(cls, redis: Redis, token_type: TokenType, subject: str, scopes: list[str]) -> str:
+    async def create(
+        cls, redis: Redis, token_type: TokenType, subject: str, scopes: list[str]
+    ) -> str:
         jti = str(uuid.uuid4())
         now = datetime.now(timezone.utc)
         expire = cls.expire(token_type)
@@ -99,7 +104,9 @@ class Token:
         return token
 
     @classmethod
-    async def verify(cls, redis: Redis, token_type: TokenType, token: str) -> JWTPayload:
+    async def verify(
+        cls, redis: Redis, token_type: TokenType, token: str
+    ) -> JWTPayload:
         try:
             payload = cls._decode(token)
         except Exception:
@@ -124,7 +131,9 @@ class Token:
         except Exception:
             raise
         await cls._revoke(redis, TokenType.ACCESS, payload["jti"])
-        access_token = await cls.create(redis, TokenType.ACCESS, payload["sub"], payload["scopes"])
+        access_token = await cls.create(
+            redis, TokenType.ACCESS, payload["sub"], payload["scopes"]
+        )
         return access_token
 
     @classmethod

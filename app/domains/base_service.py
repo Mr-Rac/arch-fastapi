@@ -1,8 +1,8 @@
 import asyncio
 import logging
-from typing import Callable, Awaitable, TypeVar, Any
+from typing import Any, Awaitable, Callable, TypeVar
 
-from fastapi import status, HTTPException
+from fastapi import HTTPException, status
 from sqlmodel import SQLModel
 
 from app.core.config import settings
@@ -24,9 +24,9 @@ class BaseService:
 
     @staticmethod
     async def safe_execute(
-            func: Callable[..., Awaitable[D]],
-            *args,
-            **kwargs,
+        func: Callable[..., Awaitable[D]],
+        *args,
+        **kwargs,
     ) -> R:
         data: Any | None = None
         try:

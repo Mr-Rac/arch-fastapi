@@ -1,16 +1,20 @@
 import logging
 import ssl
 from contextlib import asynccontextmanager
-from typing import TypedDict, AsyncIterator
+from typing import AsyncIterator, TypedDict
 
 import certifi
 from aiohttp import ClientSession, ClientTimeout, TCPConnector
 from fastapi import FastAPI
-from redis.asyncio import Redis, ConnectionPool
+from redis.asyncio import ConnectionPool, Redis
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from app.core.config import settings
-from app.core.database.mysql import create_auth_mysql_engine, create_auth_mysql_session_maker, init_auth_mysql
+from app.core.database.mysql import (
+    create_auth_mysql_engine,
+    create_auth_mysql_session_maker,
+    init_auth_mysql,
+)
 from app.core.database.redis import create_auth_redis_pool
 
 

@@ -17,9 +17,9 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{settings.API_PREFIX}/auth/login
 
 def check_scopes(*scopes: str):
     async def _checker(
-            token: Annotated[str, Depends(oauth2_scheme)],
-            session: AuthMySQLDep,
-            redis: AuthRedisDep,
+        token: Annotated[str, Depends(oauth2_scheme)],
+        session: AuthMySQLDep,
+        redis: AuthRedisDep,
     ):
         try:
             payload = await Token.verify(redis, TokenType.ACCESS, token)
@@ -27,18 +27,14 @@ def check_scopes(*scopes: str):
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail=AuthError.INVALID_TOKEN,
-                headers={
-                    "WWW-Authenticate": "Bearer"
-                },
+                headers={"WWW-Authenticate": "Bearer"},
             )
         user = await UserCurd.select(session, UserSelect(username=payload["sub"]))
         if not user:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail=AuthError.INVALID_USER,
-                headers={
-                    "WWW-Authenticate": "Bearer"
-                },
+                headers={"WWW-Authenticate": "Bearer"},
             )
         jwt_scopes = set(payload["scopes"])
         user_scopes = set(user.scopes)
@@ -47,17 +43,15 @@ def check_scopes(*scopes: str):
             raise HTTPException(
                 status_code=status.HTTP_426_UPGRADE_REQUIRED,
                 detail=AuthError.EXPIRED_SCOPES,
-                headers={
-                    "WWW-Authenticate": "Bearer"
-                }
+                headers={"WWW-Authenticate": "Bearer"},
             )
-        if settings.ADMIN_PERMISSION_SCOPE not in user_scopes and not set(scopes).issubset(user_scopes):
+        if settings.ADMIN_PERMISSION_SCOPE not in user_scopes and not set(
+            scopes
+        ).issubset(user_scopes):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail=AuthError.INVALID_SCOPES,
-                headers={
-                    "WWW-Authenticate": "Bearer"
-                },
+                headers={"WWW-Authenticate": "Bearer"},
             )
 
     return _checker

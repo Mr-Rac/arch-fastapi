@@ -1,10 +1,10 @@
 import secrets
-from typing import Literal, Annotated
+from typing import Annotated, Literal
 
 from pydantic import (
+    AnyUrl,
     BeforeValidator,
     computed_field,
-    AnyUrl,
 )
 from pydantic_core import MultiHostUrl
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -20,7 +20,7 @@ class Settings(BaseSettings):
     )
 
     # Base
-    ENVIRONMENT: Literal["local", "staging", "production"] = "local"
+    ENVIRONMENT: Literal["test", "prod"] = "test"
     PROJECT_NAME: str = "Arch FastAPI"
     VERSION: str = "0.0.1"
     CORS_ORIGINS: Annotated[list[AnyUrl] | str, BeforeValidator(parse_to_list)] = []
@@ -29,7 +29,7 @@ class Settings(BaseSettings):
     @computed_field
     @property
     def DEBUG(self) -> bool:
-        return self.ENVIRONMENT != "production"
+        return self.ENVIRONMENT == "test"
 
     @computed_field
     @property

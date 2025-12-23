@@ -1,13 +1,15 @@
 from datetime import datetime
 
 from pydantic import EmailStr
-from sqlmodel import SQLModel, Field, Relationship
+from sqlmodel import Field, Relationship, SQLModel
 
 
 class AuthBaseModel(SQLModel):
     id: int | None = Field(default=None, primary_key=True)
     created_at: datetime | None = Field(default_factory=datetime.now)
-    updated_at: datetime | None = Field(default_factory=datetime.now, sa_column_kwargs={"onupdate": datetime.now})
+    updated_at: datetime | None = Field(
+        default_factory=datetime.now, sa_column_kwargs={"onupdate": datetime.now}
+    )
 
 
 class UserRoleLink(SQLModel, table=True):
@@ -23,19 +25,21 @@ class RolePermissionLink(SQLModel, table=True):
 class User(AuthBaseModel, table=True):
     username: str = Field(..., unique=True, index=True, max_length=255)
     password: str = Field(..., max_length=128)
-    email: EmailStr | None = Field(default=None, unique=True, index=True, max_length=255)
+    email: EmailStr | None = Field(
+        default=None, unique=True, index=True, max_length=255
+    )
 
     roles: list["Role"] = Relationship(
         back_populates="users",
         link_model=UserRoleLink,
-        sa_relationship_kwargs={
-            "lazy": "selectin"
-        }
+        sa_relationship_kwargs={"lazy": "selectin"},
     )
 
     @property
     def scopes(self) -> list[str]:
-        return [permission.scope for role in self.roles for permission in role.permissions]
+        return [
+            permission.scope for role in self.roles for permission in role.permissions
+        ]
 
 
 class Role(AuthBaseModel, table=True):
@@ -44,16 +48,12 @@ class Role(AuthBaseModel, table=True):
     users: list["User"] = Relationship(
         back_populates="roles",
         link_model=UserRoleLink,
-        sa_relationship_kwargs={
-            "lazy": "selectin"
-        }
+        sa_relationship_kwargs={"lazy": "selectin"},
     )
     permissions: list["Permission"] = Relationship(
         back_populates="roles",
         link_model=RolePermissionLink,
-        sa_relationship_kwargs={
-            "lazy": "selectin"
-        }
+        sa_relationship_kwargs={"lazy": "selectin"},
     )
 
 
@@ -65,7 +65,5 @@ class Permission(AuthBaseModel, table=True):
     roles: list["Role"] = Relationship(
         back_populates="permissions",
         link_model=RolePermissionLink,
-        sa_relationship_kwargs={
-            "lazy": "selectin"
-        }
+        sa_relationship_kwargs={"lazy": "selectin"},
     )

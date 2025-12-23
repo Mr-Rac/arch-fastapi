@@ -1,6 +1,6 @@
-from typing import AsyncGenerator, Annotated
+from typing import Annotated, AsyncGenerator
 
-from fastapi import Request, HTTPException, status, Depends
+from fastapi import Depends, HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.domains.base_exception import Error

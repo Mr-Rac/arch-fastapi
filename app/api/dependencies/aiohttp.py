@@ -3,7 +3,7 @@ import logging
 from typing import Optional
 
 from aiohttp import ClientSession, web
-from fastapi import Request, HTTPException, status
+from fastapi import HTTPException, Request, status
 
 from app.core.config import settings
 from app.domains.base_exception import Error
@@ -13,15 +13,14 @@ async def get_aiohttp(request: Request) -> ClientSession:
     if session := getattr(request.app.state, "aiohttp", None):
         return session
     raise HTTPException(
-        status_code=status.HTTP_424_FAILED_DEPENDENCY,
-        detail=Error.INVALID_AIOHTTP
+        status_code=status.HTTP_424_FAILED_DEPENDENCY, detail=Error.INVALID_AIOHTTP
     )
 
 
 async def get(
-        session: ClientSession,
-        url: str,
-        headers: Optional[dict] = None,
+    session: ClientSession,
+    url: str,
+    headers: Optional[dict] = None,
 ) -> web.Response:
     async with session.get(url, headers=headers) as resp:
         resp.raise_for_status()
@@ -34,10 +33,10 @@ async def get(
 
 
 async def post(
-        session: ClientSession,
-        url: str,
-        data: Optional[dict] = None,
-        headers: Optional[dict] = None,
+    session: ClientSession,
+    url: str,
+    data: Optional[dict] = None,
+    headers: Optional[dict] = None,
 ) -> web.Response:
     async with session.post(url, json=data, headers=headers) as resp:
         resp.raise_for_status()

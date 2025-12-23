@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from fastapi import Request, HTTPException, status, Depends
+from fastapi import Depends, HTTPException, Request, status
 from redis.asyncio import Redis
 
 from app.domains.base_exception import Error

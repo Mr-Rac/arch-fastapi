@@ -1,6 +1,6 @@
 from typing import Any
 
-from sqlalchemy import Select, Update, Delete, Insert
+from sqlalchemy import Delete, Insert, Select, Update
 from sqlalchemy.dialects import mysql
 
 
@@ -16,5 +16,7 @@ def parse_to_list(value: Any, separator: str = ",") -> list[str]:
 
 
 def parse_stmt_to_str(stmt: Select | Update | Delete | Insert) -> str:
-    compiled = stmt.compile(dialect=mysql.dialect(), compile_kwargs={"literal_binds": True})
+    compiled = stmt.compile(
+        dialect=mysql.dialect(), compile_kwargs={"literal_binds": True}
+    )
     return compiled.string

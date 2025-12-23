@@ -1,17 +1,15 @@
 from typing import Any
 
 from fastapi import status
-from sqlmodel import SQLModel, Field
+from sqlmodel import Field, SQLModel
 
 from app.domains.base_exception import Error
 
 
-class BaseData(SQLModel):
-    ...
+class BaseData(SQLModel): ...
 
 
-class BaseRequest(SQLModel):
-    ...
+class BaseRequest(SQLModel): ...
 
 
 class BaseResponse(SQLModel):

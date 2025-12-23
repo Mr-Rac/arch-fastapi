@@ -21,13 +21,17 @@ def gen():
     try:
         for db in _DB:
             file = _OUTPUT_FILE.format(db)
-            subprocess.run([
-                sys.executable,
-                "-m",
-                "sqlacodegen",
-                f"{_URL}/{db}",
-                "--outfile", file,
-            ], check=True)
+            subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "sqlacodegen",
+                    f"{_URL}/{db}",
+                    "--outfile",
+                    file,
+                ],
+                check=True,
+            )
             print(f"数据库「{db}」ORM生成成功，路径: {file}")
     except subprocess.CalledProcessError as e:
         print(f"ORM生成失败: {e}")

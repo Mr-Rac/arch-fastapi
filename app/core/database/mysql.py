@@ -1,12 +1,31 @@
 import logging
 
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncEngine, AsyncSession, async_sessionmaker
+from sqlalchemy.ext.asyncio import (
+    AsyncEngine,
+    AsyncSession,
+    async_sessionmaker,
+    create_async_engine,
+)
 from sqlmodel import SQLModel
 
 from app.core.config import settings
-from app.domains.auth.curd import UserCurd, RoleCurd, PermissionCurd, RolePermissionCurd, UserRoleCurd
-from app.domains.auth.schema import UserCreate, RoleCreate, PermissionCreate, GrantPermission, GrantRole, UserSelect, \
-    RoleSelect, PermissionSelect
+from app.domains.auth.curd import (
+    PermissionCurd,
+    RoleCurd,
+    RolePermissionCurd,
+    UserCurd,
+    UserRoleCurd,
+)
+from app.domains.auth.schema import (
+    GrantPermission,
+    GrantRole,
+    PermissionCreate,
+    PermissionSelect,
+    RoleCreate,
+    RoleSelect,
+    UserCreate,
+    UserSelect,
+)
 
 
 async def create_auth_mysql_engine() -> AsyncEngine:
@@ -23,7 +42,9 @@ async def create_auth_mysql_engine() -> AsyncEngine:
     )
 
 
-async def create_auth_mysql_session_maker(engine: AsyncEngine) -> async_sessionmaker[AsyncSession]:
+async def create_auth_mysql_session_maker(
+    engine: AsyncEngine,
+) -> async_sessionmaker[AsyncSession]:
     async with engine.begin() as connection:
         await connection.run_sync(SQLModel.metadata.create_all)
     return async_sessionmaker(
@@ -35,7 +56,9 @@ async def create_auth_mysql_session_maker(engine: AsyncEngine) -> async_sessionm
 
 
 async def init_auth_mysql(session: AsyncSession) -> None:
-    user = await UserCurd.select(session, UserSelect(username=settings.ADMIN_USER_USERNAME))
+    user = await UserCurd.select(
+        session, UserSelect(username=settings.ADMIN_USER_USERNAME)
+    )
     if not user:
         user_in = UserCreate(
             username=settings.ADMIN_USER_USERNAME,
@@ -50,7 +73,9 @@ async def init_auth_mysql(session: AsyncSession) -> None:
         )
         role = await RoleCurd.create(session, role_in)
 
-    permission = await PermissionCurd.select(session, PermissionSelect(name=settings.ADMIN_PERMISSION_NAME))
+    permission = await PermissionCurd.select(
+        session, PermissionSelect(name=settings.ADMIN_PERMISSION_NAME)
+    )
     if not permission:
         permission_in = PermissionCreate(
             name=settings.ADMIN_PERMISSION_NAME,

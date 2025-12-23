@@ -1,10 +1,15 @@
 from datetime import datetime
 
 from pydantic import EmailStr
-from sqlmodel import SQLModel, Field
+from sqlmodel import Field, SQLModel
 
-from app.domains.base_schema import BaseData, BaseRequest
-from app.domains.base_schema import BaseSelect, BaseUpdate, BaseDelete
+from app.domains.base_schema import (
+    BaseData,
+    BaseDelete,
+    BaseRequest,
+    BaseSelect,
+    BaseUpdate,
+)
 
 
 class TokenData(BaseData):
@@ -38,8 +43,7 @@ class UserUpdate(BaseUpdate):
     email: EmailStr | None = Field(default=None, max_length=255)
 
 
-class UserDelete(BaseDelete):
-    ...
+class UserDelete(BaseDelete): ...
 
 
 class UserPublic(SQLModel):
@@ -64,8 +68,7 @@ class RoleUpdate(BaseUpdate):
     name: str | None = Field(default=None, max_length=255)
 
 
-class RoleDelete(BaseDelete):
-    ...
+class RoleDelete(BaseDelete): ...
 
 
 class RolePublic(SQLModel):
@@ -93,8 +96,7 @@ class PermissionUpdate(BaseUpdate):
     desc: str | None = Field(default=None, max_length=255)
 
 
-class PermissionDelete(BaseDelete):
-    ...
+class PermissionDelete(BaseDelete): ...
 
 
 class PermissionPublic(SQLModel):
