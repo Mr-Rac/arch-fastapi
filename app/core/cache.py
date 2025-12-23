@@ -10,20 +10,21 @@ from app.domains.auth.schema import UserSelect
 
 
 class RedisKey:
-
     @classmethod
     def USER_SCOPE(cls, username: str) -> str:
         return f"auth:user:scopes:{username}"
 
     @classmethod
     def USER_SCOPE_PATTERN(cls) -> str:
-        return f"auth:user:scopes:*"
+        return "auth:user:scopes:*"
 
 
 logger = logging.getLogger(__name__)
 
 
-async def get_user_scopes_cached(redis: Redis, session: AsyncSession, username: str) -> list[str]:
+async def get_user_scopes_cached(
+    redis: Redis, session: AsyncSession, username: str
+) -> list[str]:
     cache_key = RedisKey.USER_SCOPE(username)
 
     try:

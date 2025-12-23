@@ -1,4 +1,4 @@
-from typing import AsyncGenerator, Annotated
+from typing import Annotated, AsyncGenerator
 
 from fastapi import Depends, HTTPException, Request, status
 from redis.asyncio import Redis
