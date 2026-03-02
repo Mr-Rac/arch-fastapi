@@ -108,6 +108,7 @@ class AuthService:
         await self._tokens.allow(access_jti, settings.ACCESS_TOKEN_EXPIRE_SECONDS)
         await self._tokens.allow(refresh_jti, settings.REFRESH_TOKEN_EXPIRE_SECONDS)
 
+        logger.info("Token refreshed for subject=%s", subject)
         return TokenPair(access_token=access, refresh_token=refresh)
 
     async def logout(self, username: str) -> None:
@@ -169,6 +170,7 @@ class AuthService:
         user = await self._users.update(body.id, **fields)
         if user is None:
             raise BizError(ErrorCode.USER_NOT_FOUND)
+        logger.info("User updated: id=%d fields=%s", body.id, list(fields.keys()))
         return self._to_user_public(user)
 
     async def delete_user(self, user_id: int) -> None:
@@ -184,7 +186,7 @@ class AuthService:
     # ── Role CRUD ─────────────────────────────────────────────────────────
 
     async def get_role(self, query: RoleQuery) -> RolePublic:
-        """Fetch a single role.
+        """Fetch a single role by id or name.
 
         Raises:
             BizError: ``ROLE_NOT_FOUND``.
@@ -199,17 +201,29 @@ class AuthService:
         return self._to_role_public(role)
 
     async def list_roles(self, offset: int = 0, limit: int = 20) -> list[RolePublic]:
-        users = await self._roles.find_all(offset, limit)
-        return [self._to_role_public(r) for r in users]
+        """Return a paginated list of roles."""
+        roles = await self._roles.find_all(offset, limit)
+        return [self._to_role_public(r) for r in roles]
 
     async def create_role(self, body: RoleCreate) -> RolePublic:
+        """Create a new role.
+
+        Raises:
+            BizError: ``ROLE_ALREADY_EXISTS`` if name is taken.
+        """
         if await self._roles.find_by_name(body.name):
             raise BizError(ErrorCode.ROLE_ALREADY_EXISTS)
         role = Role(name=body.name)
         role = await self._roles.save(role)
+        logger.info("Role created: id=%d name=%s", role.id, role.name)
         return self._to_role_public(role)
 
     async def update_role(self, body: RoleUpdate) -> RolePublic:
+        """Update role fields.
+
+        Raises:
+            BizError: ``ROLE_NOT_FOUND``.
+        """
         fields: dict[str, object] = {}
         if body.name is not None:
             fields["name"] = body.name
@@ -218,15 +232,27 @@ class AuthService:
         role = await self._roles.update(body.id, **fields)
         if role is None:
             raise BizError(ErrorCode.ROLE_NOT_FOUND)
+        logger.info("Role updated: id=%d fields=%s", body.id, list(fields.keys()))
         return self._to_role_public(role)
 
     async def delete_role(self, role_id: int) -> None:
+        """Delete a role by id.
+
+        Raises:
+            BizError: ``ROLE_NOT_FOUND``.
+        """
         if not await self._roles.delete(role_id):
             raise BizError(ErrorCode.ROLE_NOT_FOUND)
+        logger.info("Role deleted: id=%d", role_id)
 
     # ── Permission CRUD ───────────────────────────────────────────────────
 
     async def get_permission(self, query: PermissionQuery) -> PermissionPublic:
+        """Fetch a single permission by id or name.
+
+        Raises:
+            BizError: ``PERMISSION_NOT_FOUND``.
+        """
         perm: Permission | None = None
         if query.id is not None:
             perm = await self._permissions.find_by_id(query.id)
@@ -237,17 +263,29 @@ class AuthService:
         return self._to_permission_public(perm)
 
     async def list_permissions(self, offset: int = 0, limit: int = 20) -> list[PermissionPublic]:
+        """Return a paginated list of permissions."""
         perms = await self._permissions.find_all(offset, limit)
         return [self._to_permission_public(p) for p in perms]
 
     async def create_permission(self, body: PermissionCreate) -> PermissionPublic:
+        """Create a new permission.
+
+        Raises:
+            BizError: ``PERMISSION_ALREADY_EXISTS`` if name is taken.
+        """
         if await self._permissions.find_by_name(body.name):
             raise BizError(ErrorCode.PERMISSION_ALREADY_EXISTS)
         perm = Permission(name=body.name, scope=body.scope, description=body.description)
         perm = await self._permissions.save(perm)
+        logger.info("Permission created: id=%d name=%s scope=%s", perm.id, perm.name, perm.scope)
         return self._to_permission_public(perm)
 
     async def update_permission(self, body: PermissionUpdate) -> PermissionPublic:
+        """Update permission fields.
+
+        Raises:
+            BizError: ``PERMISSION_NOT_FOUND``.
+        """
         fields: dict[str, object] = {}
         if body.name is not None:
             fields["name"] = body.name
@@ -260,22 +298,31 @@ class AuthService:
         perm = await self._permissions.update(body.id, **fields)
         if perm is None:
             raise BizError(ErrorCode.PERMISSION_NOT_FOUND)
+        logger.info("Permission updated: id=%d fields=%s", body.id, list(fields.keys()))
         return self._to_permission_public(perm)
 
     async def delete_permission(self, permission_id: int) -> None:
+        """Delete a permission by id.
+
+        Raises:
+            BizError: ``PERMISSION_NOT_FOUND``.
+        """
         if not await self._permissions.delete(permission_id):
             raise BizError(ErrorCode.PERMISSION_NOT_FOUND)
+        logger.info("Permission deleted: id=%d", permission_id)
 
     # ── Grant / Revoke ────────────────────────────────────────────────────
 
     async def grant_role(self, user_id: int, role_id: int) -> None:
-        """Assign a role to a user."""
+        """Assign a role to a user and invalidate the scope cache."""
         await self._users.add_role(user_id, role_id)
         await self._tokens.clear_cached_scopes((await self._users.find_by_id(user_id)).username)  # type: ignore[union-attr]
+        logger.info("Role granted: user_id=%d role_id=%d", user_id, role_id)
 
     async def grant_permission(self, role_id: int, permission_id: int) -> None:
         """Assign a permission to a role."""
         await self._roles.add_permission(role_id, permission_id)
+        logger.info("Permission granted: role_id=%d permission_id=%d", role_id, permission_id)
 
     # ── Helpers ───────────────────────────────────────────────────────────
 
@@ -290,6 +337,7 @@ class AuthService:
 
     @staticmethod
     def _to_user_public(user: User) -> UserPublic:
+        """Convert a ``User`` entity to its public representation."""
         return UserPublic(
             id=user.id,  # type: ignore[arg-type]
             username=user.username,
@@ -320,6 +368,7 @@ class AuthService:
 
     @staticmethod
     def _to_role_public(role: Role) -> RolePublic:
+        """Convert a ``Role`` entity to its public representation."""
         return RolePublic(
             id=role.id,  # type: ignore[arg-type]
             name=role.name,
@@ -340,6 +389,7 @@ class AuthService:
 
     @staticmethod
     def _to_permission_public(perm: Permission) -> PermissionPublic:
+        """Convert a ``Permission`` entity to its public representation."""
         return PermissionPublic(
             id=perm.id,  # type: ignore[arg-type]
             name=perm.name,

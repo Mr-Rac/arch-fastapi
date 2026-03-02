@@ -88,6 +88,8 @@ class RoleDelete(BaseModel):
 
 
 class RolePublic(BaseModel):
+    """Role representation visible to API consumers."""
+
     id: int
     name: str
     created_at: datetime
@@ -121,6 +123,8 @@ class PermissionDelete(BaseModel):
 
 
 class PermissionPublic(BaseModel):
+    """Permission representation visible to API consumers."""
+
     id: int
     name: str
     scope: str

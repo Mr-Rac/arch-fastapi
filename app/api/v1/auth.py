@@ -67,7 +67,7 @@ async def query_user(body: UserQuery, svc: AuthServiceDep) -> Result:
 
 @router.get("/users", dependencies=[Depends(require_scopes("user:read"))])
 async def list_users(svc: AuthServiceDep, offset: int = 0, limit: int = 20) -> Result:
-    """Paginated user list."""
+    """Return a paginated user list."""
     users = await svc.list_users(offset, limit)
     return Result.ok([u.model_dump() for u in users])
 
@@ -98,30 +98,35 @@ async def delete_user(user_id: int, svc: AuthServiceDep) -> Result:
 
 @router.post("/roles/query", dependencies=[Depends(require_scopes("role:read"))])
 async def query_role(body: RoleQuery, svc: AuthServiceDep) -> Result:
-    user = await svc.get_role(body)
-    return Result.ok(user.model_dump())
+    """Query a single role by id or name."""
+    role = await svc.get_role(body)
+    return Result.ok(role.model_dump())
 
 
 @router.get("/roles", dependencies=[Depends(require_scopes("role:read"))])
 async def list_roles(svc: AuthServiceDep, offset: int = 0, limit: int = 20) -> Result:
+    """Return a paginated role list."""
     roles = await svc.list_roles(offset, limit)
     return Result.ok([r.model_dump() for r in roles])
 
 
 @router.post("/roles", dependencies=[Depends(require_scopes("role:create"))])
 async def create_role(body: RoleCreate, svc: AuthServiceDep) -> Result:
+    """Create a new role."""
     role = await svc.create_role(body)
     return Result.ok(role.model_dump())
 
 
 @router.put("/roles", dependencies=[Depends(require_scopes("role:update"))])
 async def update_role(body: RoleUpdate, svc: AuthServiceDep) -> Result:
+    """Update role fields."""
     role = await svc.update_role(body)
     return Result.ok(role.model_dump())
 
 
 @router.delete("/roles/{role_id}", dependencies=[Depends(require_scopes("role:delete"))])
 async def delete_role(role_id: int, svc: AuthServiceDep) -> Result:
+    """Delete a role by id."""
     await svc.delete_role(role_id)
     return Result.ok()
 
@@ -131,29 +136,34 @@ async def delete_role(role_id: int, svc: AuthServiceDep) -> Result:
 
 @router.post("/permissions/query", dependencies=[Depends(require_scopes("permission:read"))])
 async def query_permission(body: PermissionQuery, svc: AuthServiceDep) -> Result:
+    """Query a single permission by id or name."""
     perm = await svc.get_permission(body)
     return Result.ok(perm.model_dump())
 
 
 @router.get("/permissions", dependencies=[Depends(require_scopes("permission:read"))])
 async def list_permissions(svc: AuthServiceDep, offset: int = 0, limit: int = 20) -> Result:
+    """Return a paginated permission list."""
     perms = await svc.list_permissions(offset, limit)
     return Result.ok([p.model_dump() for p in perms])
 
 
 @router.post("/permissions", dependencies=[Depends(require_scopes("permission:create"))])
 async def create_permission(body: PermissionCreate, svc: AuthServiceDep) -> Result:
+    """Create a new permission."""
     perm = await svc.create_permission(body)
     return Result.ok(perm.model_dump())
 
 
 @router.put("/permissions", dependencies=[Depends(require_scopes("permission:update"))])
 async def update_permission(body: PermissionUpdate, svc: AuthServiceDep) -> Result:
+    """Update permission fields."""
     perm = await svc.update_permission(body)
     return Result.ok(perm.model_dump())
 
 
 @router.delete("/permissions/{perm_id}", dependencies=[Depends(require_scopes("permission:delete"))])
 async def delete_permission(perm_id: int, svc: AuthServiceDep) -> Result:
+    """Delete a permission by id."""
     await svc.delete_permission(perm_id)
     return Result.ok()
