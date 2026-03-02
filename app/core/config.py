@@ -32,6 +32,7 @@ class Settings(BaseSettings):
     PROJECT_NAME: str = "Arch FastAPI"
     VERSION: str = "0.1.0"
     API_PREFIX: str = "/api"
+    LOG_LEVEL: str = "INFO"
     CORS_ORIGINS: Annotated[list[AnyUrl] | str, BeforeValidator(_parse_cors)] = []
 
     @computed_field

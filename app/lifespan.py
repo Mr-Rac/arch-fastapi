@@ -37,7 +37,7 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[dict]:
 
     async with pg_engine.begin() as conn:
         await conn.run_sync(SQLModel.metadata.create_all)
-    logger.warning("PostgreSQL connected - tables ensured.")
+    logger.info("PostgreSQL connected - tables ensured.")
 
     async with pg_session_maker() as session:
         await _seed_admin(session)
@@ -45,14 +45,14 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[dict]:
     # ── MongoDB ───────────────────────────────────────────────────────────
     mongo_client = create_mongo_client()
     mongo_db = get_mongo_database(mongo_client)
-    logger.warning("MongoDB client created - db=%s", mongo_db.name)
+    logger.info("MongoDB client created - db=%s", mongo_db.name)
 
     # ── Redis ─────────────────────────────────────────────────────────────
     redis_pool: ConnectionPool = create_redis_pool()
     redis = Redis(connection_pool=redis_pool)
     await redis.ping()
     await redis.aclose()
-    logger.warning("Redis connected.")
+    logger.info("Redis connected.")
 
     # ── Yield state ───────────────────────────────────────────────────────
     yield {
@@ -67,7 +67,7 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[dict]:
     await pg_engine.dispose()
     await redis_pool.aclose()
     mongo_client.close()
-    logger.warning("All connections closed.")
+    logger.info("All connections closed.")
 
 
 async def _seed_admin(session: AsyncSession) -> None:
@@ -138,4 +138,4 @@ async def _seed_admin(session: AsyncSession) -> None:
         session.add(UserRoleLink(user_id=user.id, role_id=role.id))  # type: ignore[arg-type]
         await session.commit()
 
-    logger.warning("Admin seed complete (user=%s, role=%s).", user.username, role.name)
+    logger.info("Admin seed complete (user=%s, role=%s).", user.username, role.name)

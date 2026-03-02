@@ -5,6 +5,8 @@ into SQLAlchemy queries.  The session lifecycle is managed by the
 FastAPI dependency in ``api.deps``.
 """
 
+import logging
+
 from sqlalchemy import delete as sa_delete
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -16,6 +18,8 @@ from app.domain.auth.entity import (
     User,
     UserRoleLink,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class PgUserRepository:
@@ -36,29 +40,44 @@ class PgUserRepository:
         return list((await self._s.execute(stmt)).scalars().all())
 
     async def save(self, user: User) -> User:
-        self._s.add(user)
-        await self._s.commit()
-        await self._s.refresh(user)
-        return user
+        try:
+            self._s.add(user)
+            await self._s.commit()
+            await self._s.refresh(user)
+            return user
+        except Exception:
+            await self._s.rollback()
+            logger.exception("Failed to save user username=%s", user.username)
+            raise
 
     async def update(self, user_id: int, **fields: object) -> User | None:
         user = await self.find_by_id(user_id)
         if user is None:
             return None
-        for k, v in fields.items():
-            setattr(user, k, v)
-        await self._s.commit()
-        await self._s.refresh(user)
-        return user
+        try:
+            for k, v in fields.items():
+                setattr(user, k, v)
+            await self._s.commit()
+            await self._s.refresh(user)
+            return user
+        except Exception:
+            await self._s.rollback()
+            logger.exception("Failed to update user id=%d fields=%s", user_id, list(fields.keys()))
+            raise
 
     async def delete(self, user_id: int) -> bool:
         user = await self.find_by_id(user_id)
         if user is None:
             return False
-        await self._s.execute(sa_delete(UserRoleLink).where(UserRoleLink.user_id == user_id))
-        await self._s.delete(user)
-        await self._s.commit()
-        return True
+        try:
+            await self._s.execute(sa_delete(UserRoleLink).where(UserRoleLink.user_id == user_id))
+            await self._s.delete(user)
+            await self._s.commit()
+            return True
+        except Exception:
+            await self._s.rollback()
+            logger.exception("Failed to delete user id=%d", user_id)
+            raise
 
     async def add_role(self, user_id: int, role_id: int) -> None:
         self._s.add(UserRoleLink(user_id=user_id, role_id=role_id))

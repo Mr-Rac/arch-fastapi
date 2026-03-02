@@ -7,6 +7,8 @@ All validation / authorization errors are raised as ``BizError`` so
 that the global exception handler returns a consistent response.
 """
 
+import logging
+
 from app.core.config import settings
 from app.core.errors import BizError, ErrorCode
 from app.core.security import (
@@ -39,6 +41,8 @@ from app.domain.auth.schema import (
     UserUpdate,
 )
 
+logger = logging.getLogger(__name__)
+
 
 class AuthService:
     """Stateless service - a new instance is created per request via DI."""
@@ -65,6 +69,7 @@ class AuthService:
         """
         user = await self._users.find_by_username(username)
         if user is None or not verify_password(password, user.password):
+            logger.warning("Login failed for username=%s", username)
             raise BizError(ErrorCode.INVALID_CREDENTIALS)
 
         scopes = await self._resolve_scopes(user)
@@ -75,6 +80,7 @@ class AuthService:
         await self._tokens.allow(access_jti, settings.ACCESS_TOKEN_EXPIRE_SECONDS)
         await self._tokens.allow(refresh_jti, settings.REFRESH_TOKEN_EXPIRE_SECONDS)
 
+        logger.info("Login succeeded for username=%s scopes=%s", user.username, scopes)
         return TokenPair(access_token=access, refresh_token=refresh)
 
     async def refresh_token(self, refresh_token_str: str) -> TokenPair:
@@ -108,6 +114,7 @@ class AuthService:
         """Revoke **all** tokens for a user and clear cached scopes."""
         await self._tokens.revoke_all(username)
         await self._tokens.clear_cached_scopes(username)
+        logger.info("Logout: all tokens revoked for username=%s", username)
 
     # ── User CRUD ─────────────────────────────────────────────────────────
 
@@ -141,6 +148,7 @@ class AuthService:
             raise BizError(ErrorCode.USER_ALREADY_EXISTS)
         user = User(username=body.username, password=hash_password(body.password), email=body.email)
         user = await self._users.save(user)
+        logger.info("User created: id=%d username=%s", user.id, user.username)
         return self._to_user_public(user)
 
     async def update_user(self, body: UserUpdate) -> UserPublic:
@@ -171,6 +179,7 @@ class AuthService:
         """
         if not await self._users.delete(user_id):
             raise BizError(ErrorCode.USER_NOT_FOUND)
+        logger.info("User deleted: id=%d", user_id)
 
     # ── Role CRUD ─────────────────────────────────────────────────────────
 
