@@ -4,41 +4,41 @@
 
 ### Overview
 
-This is **arch-fastapi**, a FastAPI-based RBAC authentication microservice. It provides JWT auth, user/role/permission CRUD, and scope-based authorization. See `README.md` for basic commands (`uv sync`, `fastapi dev`).
+**arch-fastapi** is a DDD-structured FastAPI authentication/RBAC template.
+See `README.md` for project structure, conventions, and standard commands (`uv sync`, `fastapi dev`, `ruff check`, etc.).
 
 ### Required Services
 
-| Service | Default Port | Notes |
-|---------|-------------|-------|
-| FastAPI app | 8000 | `source .venv/bin/activate && fastapi dev --host 0.0.0.0 --port 8000` |
-| MySQL | 3306 | Must have a database named `auth` created. Root password configured in `.env`. |
-| Redis | 6379 | Password configured in `.env` via `REDIS_PASSWORD`. Start with `--requirepass`. |
+| Service     | Port  | Purpose                           |
+|-------------|-------|-----------------------------------|
+| PostgreSQL  | 5432  | Primary relational store (asyncpg)|
+| MongoDB     | 27017 | Document store (motor)            |
+| Redis       | 6379  | Token allow-list & scope cache    |
+| FastAPI app | 8000  | `fastapi dev --host 0.0.0.0`     |
 
-### Starting Services
+### Starting Services (non-Docker)
 
 ```bash
-# Start MySQL
-sudo mkdir -p /var/run/mysqld && sudo chown mysql:mysql /var/run/mysqld
-sudo mysqld --user=mysql --datadir=/var/lib/mysql --socket=/var/run/mysqld/mysqld.sock --pid-file=/var/run/mysqld/mysqld.pid &
-sleep 5
-sudo chmod 755 /var/run/mysqld
+# PostgreSQL (Ubuntu 24.04)
+sudo pg_ctlcluster 16 main start
+PGPASSWORD=postgres psql -h localhost -U postgres -c "CREATE DATABASE IF NOT EXISTS auth;"
 
-# Start Redis (password from .env)
-sudo redis-server --daemonize yes --requirepass 939228
+# MongoDB
+sudo mongod --dbpath /var/lib/mongodb --logpath /var/log/mongodb/mongod.log --fork
 
-# Create auth database if not exists
-mysql -u root -p939228 -e "CREATE DATABASE IF NOT EXISTS auth;"
+# Redis (no password by default in .env)
+sudo redis-server --daemonize yes
 
-# Start FastAPI dev server
+# FastAPI
 source .venv/bin/activate
 fastapi dev --host 0.0.0.0 --port 8000
 ```
 
 ### Gotchas
 
-- `.env` has `ENVIRONMENT` field: the `Settings` class only accepts `"test"` or `"prod"` (not `"local"`). Use `ENVIRONMENT=test` for development.
-- The `.env` uses `REDIS_DB=0` but the Settings class field is `REDIS_AUTH_DB`. The `REDIS_DB` value is silently ignored (defaults to 0 anyway via `extra="ignore"`).
-- On startup the app auto-seeds an admin user (`admin`/`admin`), admin role, and admin permission with scope `admin`. The admin scope grants access to all protected endpoints.
-- No automated test suite exists in this repository.
-- MySQL socket permissions: after starting `mysqld`, run `sudo chmod 755 /var/run/mysqld` so non-root users can connect via socket.
-- `passlib` logs a harmless warning about bcrypt version (`module 'bcrypt' has no attribute '__about__'`). This does not affect functionality.
+- **asyncpg + timestamps**: Entity `_utcnow()` returns naive UTC datetimes (no tzinfo). asyncpg is strict: `TIMESTAMP WITHOUT TIME ZONE` columns reject timezone-aware datetimes.
+- **PostgreSQL auth**: `pg_hba.conf` must allow `md5` (not just `peer`) for TCP connections from localhost. Default Ubuntu install uses `peer` for local socket only.
+- **Admin seed**: On startup the app auto-creates admin user (`admin`/`admin`), role, and permission with scope `admin`. The `admin` scope bypasses all permission checks.
+- **No automated test suite yet**: The `tests/` directory is empty; tests can be added with `pytest` + `pytest-asyncio` + `httpx`.
+- **ruff bans `json` module**: Use `orjson` instead. The `TID253` rule triggers on `import json`.
+- **Pre-commit hooks**: Run `uv run pre-commit install` once to enable ruff lint + format on every commit.

@@ -1,116 +1,120 @@
+"""Application configuration via pydantic-settings.
+
+All settings are loaded from environment variables / ``.env`` file.
+Computed fields derive convenience URLs for each database.
+"""
+
 from typing import Annotated, Literal
 
-from pydantic import (
-    AnyUrl,
-    BeforeValidator,
-    Field,
-    computed_field,
-)
+from pydantic import AnyUrl, BeforeValidator, Field, computed_field
 from pydantic_core import MultiHostUrl
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-from app.utils.parse import parse_to_list
+
+def _parse_cors(v: str | list[str]) -> list[str]:
+    """Accept comma-separated string or list for CORS origins."""
+    if isinstance(v, list):
+        return v
+    return [i.strip() for i in v.split(",") if i.strip()]
 
 
 class Settings(BaseSettings):
+    """Root settings - single source of truth for all configuration."""
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_ignore_empty=True,
         extra="ignore",
     )
 
-    # Base
-    ENVIRONMENT: Literal["test", "prod"] = "test"
+    # ── Base ──────────────────────────────────────────────────────────────
+    ENVIRONMENT: Literal["dev", "staging", "prod"] = "dev"
     PROJECT_NAME: str = "Arch FastAPI"
-    VERSION: str = "0.0.1"
-    CORS_ORIGINS: Annotated[list[AnyUrl] | str, BeforeValidator(parse_to_list)] = []
+    VERSION: str = "0.1.0"
     API_PREFIX: str = "/api"
+    CORS_ORIGINS: Annotated[list[AnyUrl] | str, BeforeValidator(_parse_cors)] = []
 
     @computed_field
     @property
-    def DEBUG(self) -> bool:
-        return self.ENVIRONMENT == "test"
+    def DEBUG(self) -> bool:  # noqa: N802
+        return self.ENVIRONMENT == "dev"
 
     @computed_field
     @property
-    def ORIGINS(self) -> list[str]:
-        return [str(origin).rstrip("/") for origin in self.CORS_ORIGINS]
+    def ORIGINS(self) -> list[str]:  # noqa: N802
+        return [str(o).rstrip("/") for o in self.CORS_ORIGINS]
 
-    # OAuth
-    SECRET_KEY: str = Field(..., min_length=32, description="JWT signing key")
+    # ── Security / JWT ────────────────────────────────────────────────────
+    SECRET_KEY: str = Field(..., min_length=32)
     ALGORITHM: str = "HS256"
-    ISSUER: str = "arc-fastapi"
-    AUDIENCE: str = "arc-fastapi"
+    ISSUER: str = "arch-fastapi"
+    AUDIENCE: str = "arch-fastapi"
     LEEWAY: float = 30.0
-    ACCESS_TOKEN_EXPIRE_SECONDS: int = 60 * 10
+    ACCESS_TOKEN_EXPIRE_SECONDS: int = 60 * 30
     REFRESH_TOKEN_EXPIRE_SECONDS: int = 60 * 60 * 24 * 7
 
-    # Cache
-    USER_SCOPES_CACHE_TTL: int = 300
-
-    # Aiohttp
+    # ── Aiohttp ──────────────────────────────────────────────────────────
     AIOHTTP_TIMEOUT: int = 30
 
-    # Redis
-    REDIS_HOST: str
-    REDIS_PORT: int = 6379
-    REDIS_USERNAME: str | None = None
-    REDIS_PASSWORD: str = ""
-    REDIS_DECODE_RESPONSES: bool = True
-    REDIS_RETRY_ON_TIMEOUT: bool = True
-    REDIS_MAX_CONNECTIONS: int = 10
-
-    REDIS_AUTH_DB: int = 0
-
-    @computed_field
-    @property
-    def AUTH_REDIS_DB_URL(self) -> str:
-        return MultiHostUrl.build(
-            scheme="redis",
-            username=self.REDIS_USERNAME,
-            password=self.REDIS_PASSWORD,
-            host=self.REDIS_HOST,
-            port=self.REDIS_PORT,
-            path=str(self.REDIS_AUTH_DB),
-        ).unicode_string()
-
-    # MySQL
-    MYSQL_HOST: str
-    MYSQL_PORT: int = 3306
-    MYSQL_USERNAME: str
-    MYSQL_PASSWORD: str = ""
-    MYSQL_ISOLATION_LEVEL: str = "READ COMMITTED"
-    MYSQL_MAX_OVERFLOW: int = 20
-    MYSQL_POOL_PRE_PING: bool = True
-    MYSQL_POOL_SIZE: int = 10
-    MYSQL_POOL_RECYCLE: int = 1800
-    MYSQL_POOL_TIMEOUT: int = 30
-
-    MYSQL_AUTH_DB: str = "auth"
+    # ── PostgreSQL ────────────────────────────────────────────────────────
+    POSTGRES_HOST: str = "localhost"
+    POSTGRES_PORT: int = 5432
+    POSTGRES_USER: str = "postgres"
+    POSTGRES_PASSWORD: str = ""
+    POSTGRES_DB: str = "auth"
+    PG_POOL_SIZE: int = 10
+    PG_MAX_OVERFLOW: int = 20
+    PG_POOL_RECYCLE: int = 1800
 
     @computed_field
     @property
-    def MYSQL_AUTH_DB_URL(self) -> str:
+    def POSTGRES_URL(self) -> str:  # noqa: N802
         return MultiHostUrl.build(
-            scheme="mysql+aiomysql",
-            username=self.MYSQL_USERNAME,
-            password=self.MYSQL_PASSWORD,
-            host=self.MYSQL_HOST,
-            port=self.MYSQL_PORT,
-            path=self.MYSQL_AUTH_DB,
+            scheme="postgresql+asyncpg",
+            username=self.POSTGRES_USER,
+            password=self.POSTGRES_PASSWORD,
+            host=self.POSTGRES_HOST,
+            port=self.POSTGRES_PORT,
+            path=self.POSTGRES_DB,
         ).unicode_string()
 
     @computed_field
     @property
-    def MYSQL_ECHO(self) -> bool:
+    def PG_ECHO(self) -> bool:  # noqa: N802
         return self.DEBUG
 
-    ADMIN_USER_USERNAME: str = "admin"
-    ADMIN_USER_PASSWORD: str = "admin"
-    ADMIN_ROLE_NAME: str = "admin"
-    ADMIN_PERMISSION_NAME: str = "admin"
-    ADMIN_PERMISSION_SCOPE: str = "admin"
-    ADMIN_PERMISSION_DESC: str = "admin"
+    # ── MongoDB ───────────────────────────────────────────────────────────
+    MONGO_HOST: str = "localhost"
+    MONGO_PORT: int = 27017
+    MONGO_DB: str = "arch"
+
+    @computed_field
+    @property
+    def MONGO_URL(self) -> str:  # noqa: N802
+        return f"mongodb://{self.MONGO_HOST}:{self.MONGO_PORT}"
+
+    # ── Redis ─────────────────────────────────────────────────────────────
+    REDIS_HOST: str = "localhost"
+    REDIS_PORT: int = 6379
+    REDIS_PASSWORD: str = ""
+    REDIS_DB: int = 0
+    REDIS_MAX_CONNECTIONS: int = 20
+
+    @computed_field
+    @property
+    def REDIS_URL(self) -> str:  # noqa: N802
+        password_part = f":{self.REDIS_PASSWORD}@" if self.REDIS_PASSWORD else ""
+        return f"redis://{password_part}{self.REDIS_HOST}:{self.REDIS_PORT}/{self.REDIS_DB}"
+
+    # ── Cache ─────────────────────────────────────────────────────────────
+    USER_SCOPES_CACHE_TTL: int = 300
+
+    # ── Admin seed ────────────────────────────────────────────────────────
+    ADMIN_USERNAME: str = "admin"
+    ADMIN_PASSWORD: str = "admin"
+    ADMIN_ROLE: str = "admin"
+    ADMIN_PERMISSION: str = "admin"
+    ADMIN_SCOPE: str = "admin"
 
 
-settings = Settings()  # type: ignore
+settings = Settings()  # type: ignore[call-arg]

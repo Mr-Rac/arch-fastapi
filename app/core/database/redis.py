@@ -1,12 +1,18 @@
+"""Redis async connection pool.
+
+Uses ``redis.asyncio`` with optional hiredis acceleration.
+"""
+
 from redis.asyncio import ConnectionPool
 
 from app.core.config import settings
 
 
-async def create_auth_redis_pool() -> ConnectionPool:
+def create_redis_pool() -> ConnectionPool:
+    """Create and return an async Redis connection pool."""
     return ConnectionPool.from_url(
-        url=settings.AUTH_REDIS_DB_URL,
-        decode_responses=settings.REDIS_DECODE_RESPONSES,
-        retry_on_timeout=settings.REDIS_RETRY_ON_TIMEOUT,
+        settings.REDIS_URL,
+        decode_responses=True,
         max_connections=settings.REDIS_MAX_CONNECTIONS,
+        retry_on_timeout=True,
     )

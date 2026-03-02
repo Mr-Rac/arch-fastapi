@@ -77,4 +77,4 @@ mypy_cache/
 idea/
 vscode/
 # macOS specific files:
-DS_Store
+DS_Storedump.rdb
