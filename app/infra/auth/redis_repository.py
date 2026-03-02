@@ -3,7 +3,7 @@
 Key schema
 ----------
 * ``token:allow:{jti}``            - token allow-list entry (TTL = token lifetime)
-* ``token:user:{username}``        - set of JTIs belonging to a user
+* ``token:user:{username}``        - set of all active JTIs belonging to a user
 * ``cache:scopes:{username}``      - cached permission-scope list
 """
 
@@ -23,9 +23,17 @@ class RedisTokenRepository:
 
     # ── Allow-list ────────────────────────────────────────────────────────
 
-    async def allow(self, jti: str, ttl: int) -> None:
-        """Add a JTI to the allow-list with a TTL (seconds)."""
-        await self._r.set(f"token:allow:{jti}", "1", ex=ttl)
+    async def allow(self, jti: str, username: str, ttl: int) -> None:
+        """Add a JTI to the allow-list and track it under the user's set.
+
+        Both the allow-list entry and the user-set member share the same
+        TTL so they expire together.
+        """
+        pipe = self._r.pipeline()
+        pipe.set(f"token:allow:{jti}", username, ex=ttl)
+        pipe.sadd(f"token:user:{username}", jti)
+        pipe.expire(f"token:user:{username}", ttl)
+        await pipe.execute()
 
     async def is_allowed(self, jti: str) -> bool:
         """Check whether a JTI is still in the allow-list."""
@@ -33,10 +41,15 @@ class RedisTokenRepository:
 
     async def revoke(self, jti: str) -> None:
         """Remove a single JTI from the allow-list."""
-        await self._r.delete(f"token:allow:{jti}")
+        username = await self._r.get(f"token:allow:{jti}")
+        pipe = self._r.pipeline()
+        pipe.delete(f"token:allow:{jti}")
+        if username:
+            pipe.srem(f"token:user:{username}", jti)
+        await pipe.execute()
 
     async def revoke_all(self, username: str) -> None:
-        """Remove all JTIs belonging to *username*."""
+        """Remove **all** active JTIs belonging to *username*."""
         key = f"token:user:{username}"
         jtis = await self._r.smembers(key)
         if jtis:
@@ -45,6 +58,7 @@ class RedisTokenRepository:
                 pipe.delete(f"token:allow:{jti}")
             pipe.delete(key)
             await pipe.execute()
+            logger.info("Revoked %d tokens for username=%s", len(jtis), username)
 
     # ── Scope cache ───────────────────────────────────────────────────────
 

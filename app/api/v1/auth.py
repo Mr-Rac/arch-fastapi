@@ -9,10 +9,11 @@ from typing import Annotated
 from fastapi import APIRouter, Depends
 from fastapi.security import OAuth2PasswordRequestForm
 
-from app.api.deps import AuthServiceDep, require_scopes
+from app.api.deps import AuthServiceDep, oauth2_scheme, require_scopes
 from app.core.response import Result
 from app.domain.auth.schema import (
-    LogoutRequest,
+    GrantPermission,
+    GrantRole,
     PermissionCreate,
     PermissionQuery,
     PermissionUpdate,
@@ -43,15 +44,21 @@ async def login(
 
 @router.post("/refresh-token")
 async def refresh_token(body: RefreshRequest, svc: AuthServiceDep) -> Result:
-    """Exchange a valid refresh token for a new token pair."""
+    """Exchange a valid refresh token for a new token pair.
+
+    Scopes are re-resolved from DB so permission changes take effect.
+    """
     pair = await svc.refresh_token(body.refresh_token)
     return Result.ok(pair.model_dump())
 
 
 @router.post("/logout")
-async def logout(body: LogoutRequest, svc: AuthServiceDep) -> Result:
-    """Revoke all tokens for the given user."""
-    await svc.logout(body.username)
+async def logout(
+    token: Annotated[str, Depends(oauth2_scheme)],
+    svc: AuthServiceDep,
+) -> Result:
+    """Revoke all tokens for the current authenticated user."""
+    await svc.logout_current(token)
     return Result.ok()
 
 
@@ -166,4 +173,35 @@ async def update_permission(body: PermissionUpdate, svc: AuthServiceDep) -> Resu
 async def delete_permission(perm_id: int, svc: AuthServiceDep) -> Result:
     """Delete a permission by id."""
     await svc.delete_permission(perm_id)
+    return Result.ok()
+
+
+# ── Grant / Revoke ────────────────────────────────────────────────────────
+
+
+@router.post("/roles/grant", dependencies=[Depends(require_scopes("role:grant"))])
+async def grant_role(body: GrantRole, svc: AuthServiceDep) -> Result:
+    """Assign a role to a user. Invalidates the user's scope cache."""
+    await svc.grant_role(body.user_id, body.role_id)
+    return Result.ok()
+
+
+@router.post("/roles/revoke", dependencies=[Depends(require_scopes("role:revoke"))])
+async def revoke_role(body: GrantRole, svc: AuthServiceDep) -> Result:
+    """Remove a role from a user. Invalidates the user's scope cache."""
+    await svc.revoke_role(body.user_id, body.role_id)
+    return Result.ok()
+
+
+@router.post("/permissions/grant", dependencies=[Depends(require_scopes("permission:grant"))])
+async def grant_permission(body: GrantPermission, svc: AuthServiceDep) -> Result:
+    """Assign a permission to a role. Invalidates all affected users' caches."""
+    await svc.grant_permission(body.role_id, body.permission_id)
+    return Result.ok()
+
+
+@router.post("/permissions/revoke", dependencies=[Depends(require_scopes("permission:revoke"))])
+async def revoke_permission(body: GrantPermission, svc: AuthServiceDep) -> Result:
+    """Remove a permission from a role. Invalidates all affected users' caches."""
+    await svc.revoke_permission(body.role_id, body.permission_id)
     return Result.ok()

@@ -73,18 +73,16 @@ class AuthService:
             raise BizError(ErrorCode.INVALID_CREDENTIALS)
 
         scopes = await self._resolve_scopes(user)
-
-        access, access_jti = create_access_token(user.username, scopes)
-        refresh, refresh_jti = create_refresh_token(user.username, scopes)
-
-        await self._tokens.allow(access_jti, settings.ACCESS_TOKEN_EXPIRE_SECONDS)
-        await self._tokens.allow(refresh_jti, settings.REFRESH_TOKEN_EXPIRE_SECONDS)
+        pair = await self._issue_token_pair(user.username, scopes)
 
         logger.info("Login succeeded for username=%s scopes=%s", user.username, scopes)
-        return TokenPair(access_token=access, refresh_token=refresh)
+        return pair
 
     async def refresh_token(self, refresh_token_str: str) -> TokenPair:
         """Exchange a valid refresh token for a new token pair.
+
+        Scopes are **re-resolved from the database** so that any
+        permission changes since the last login take effect immediately.
 
         Raises:
             BizError: ``TOKEN_INVALID`` / ``TOKEN_EXPIRED``.
@@ -100,22 +98,31 @@ class AuthService:
         await self._tokens.revoke(old_jti)
 
         subject: str = payload["sub"]
-        scopes: list[str] = payload.get("scopes", [])
+        user = await self._users.find_by_username(subject)
+        if user is None:
+            raise BizError(ErrorCode.USER_NOT_FOUND)
 
-        access, access_jti = create_access_token(subject, scopes)
-        refresh, refresh_jti = create_refresh_token(subject, scopes)
+        scopes = await self._resolve_scopes(user)
+        pair = await self._issue_token_pair(user.username, scopes)
 
-        await self._tokens.allow(access_jti, settings.ACCESS_TOKEN_EXPIRE_SECONDS)
-        await self._tokens.allow(refresh_jti, settings.REFRESH_TOKEN_EXPIRE_SECONDS)
-
-        logger.info("Token refreshed for subject=%s", subject)
-        return TokenPair(access_token=access, refresh_token=refresh)
+        logger.info("Token refreshed for username=%s scopes=%s", subject, scopes)
+        return pair
 
     async def logout(self, username: str) -> None:
         """Revoke **all** tokens for a user and clear cached scopes."""
         await self._tokens.revoke_all(username)
         await self._tokens.clear_cached_scopes(username)
         logger.info("Logout: all tokens revoked for username=%s", username)
+
+    async def logout_current(self, token: str) -> None:
+        """Revoke the caller's own tokens using a valid access token.
+
+        This is the safe version of logout - no need to pass a username,
+        the identity is extracted from the JWT itself.
+        """
+        payload = decode_token(token)
+        username: str = payload["sub"]
+        await self.logout(username)
 
     # ── User CRUD ─────────────────────────────────────────────────────────
 
@@ -314,17 +321,44 @@ class AuthService:
     # ── Grant / Revoke ────────────────────────────────────────────────────
 
     async def grant_role(self, user_id: int, role_id: int) -> None:
-        """Assign a role to a user and invalidate the scope cache."""
+        """Assign a role to a user and invalidate the user's scope cache."""
         await self._users.add_role(user_id, role_id)
-        await self._tokens.clear_cached_scopes((await self._users.find_by_id(user_id)).username)  # type: ignore[union-attr]
+        user = await self._users.find_by_id(user_id)
+        if user:
+            await self._tokens.clear_cached_scopes(user.username)
         logger.info("Role granted: user_id=%d role_id=%d", user_id, role_id)
 
+    async def revoke_role(self, user_id: int, role_id: int) -> None:
+        """Remove a role from a user and invalidate the user's scope cache."""
+        await self._users.remove_role(user_id, role_id)
+        user = await self._users.find_by_id(user_id)
+        if user:
+            await self._tokens.clear_cached_scopes(user.username)
+        logger.info("Role revoked: user_id=%d role_id=%d", user_id, role_id)
+
     async def grant_permission(self, role_id: int, permission_id: int) -> None:
-        """Assign a permission to a role."""
+        """Assign a permission to a role and invalidate affected users' caches."""
         await self._roles.add_permission(role_id, permission_id)
+        await self._invalidate_role_users_cache(role_id)
         logger.info("Permission granted: role_id=%d permission_id=%d", role_id, permission_id)
 
+    async def revoke_permission(self, role_id: int, permission_id: int) -> None:
+        """Remove a permission from a role and invalidate affected users' caches."""
+        await self._roles.remove_permission(role_id, permission_id)
+        await self._invalidate_role_users_cache(role_id)
+        logger.info("Permission revoked: role_id=%d permission_id=%d", role_id, permission_id)
+
     # ── Helpers ───────────────────────────────────────────────────────────
+
+    async def _issue_token_pair(self, username: str, scopes: list[str]) -> TokenPair:
+        """Create an access + refresh token pair and persist both JTIs."""
+        access, access_jti = create_access_token(username, scopes)
+        refresh, refresh_jti = create_refresh_token(username, scopes)
+
+        await self._tokens.allow(access_jti, username, settings.ACCESS_TOKEN_EXPIRE_SECONDS)
+        await self._tokens.allow(refresh_jti, username, settings.REFRESH_TOKEN_EXPIRE_SECONDS)
+
+        return TokenPair(access_token=access, refresh_token=refresh)
 
     async def _resolve_scopes(self, user: User) -> list[str]:
         """Resolve scopes with cache-aside pattern."""
@@ -334,6 +368,14 @@ class AuthService:
         scopes = user.scopes
         await self._tokens.cache_scopes(user.username, scopes, settings.USER_SCOPES_CACHE_TTL)
         return scopes
+
+    async def _invalidate_role_users_cache(self, role_id: int) -> None:
+        """Clear the scope cache for every user that holds *role_id*."""
+        user_ids = await self._roles.find_user_ids_by_role(role_id)
+        for uid in user_ids:
+            user = await self._users.find_by_id(uid)
+            if user:
+                await self._tokens.clear_cached_scopes(user.username)
 
     @staticmethod
     def _to_user_public(user: User) -> UserPublic:

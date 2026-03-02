@@ -98,6 +98,18 @@ class PgUserRepository:
             logger.exception("Failed to add role link user_id=%d role_id=%d", user_id, role_id)
             raise
 
+    async def remove_role(self, user_id: int, role_id: int) -> None:
+        """Delete a user-role link."""
+        try:
+            await self._s.execute(
+                sa_delete(UserRoleLink).where(UserRoleLink.user_id == user_id, UserRoleLink.role_id == role_id)
+            )
+            await self._s.commit()
+        except Exception:
+            await self._s.rollback()
+            logger.exception("Failed to remove role link user_id=%d role_id=%d", user_id, role_id)
+            raise
+
 
 class PgRoleRepository:
     """PostgreSQL-backed ``RoleRepository``."""
@@ -172,6 +184,25 @@ class PgRoleRepository:
             await self._s.rollback()
             logger.exception("Failed to add permission link role_id=%d permission_id=%d", role_id, permission_id)
             raise
+
+    async def remove_permission(self, role_id: int, permission_id: int) -> None:
+        """Delete a role-permission link."""
+        try:
+            await self._s.execute(
+                sa_delete(RolePermissionLink).where(
+                    RolePermissionLink.role_id == role_id, RolePermissionLink.permission_id == permission_id
+                )
+            )
+            await self._s.commit()
+        except Exception:
+            await self._s.rollback()
+            logger.exception("Failed to remove permission link role_id=%d permission_id=%d", role_id, permission_id)
+            raise
+
+    async def find_user_ids_by_role(self, role_id: int) -> list[int]:
+        """Return all user IDs that have the given role."""
+        stmt = select(UserRoleLink.user_id).where(UserRoleLink.role_id == role_id)
+        return list((await self._s.execute(stmt)).scalars().all())
 
 
 class PgPermissionRepository:
